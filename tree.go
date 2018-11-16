@@ -404,6 +404,39 @@ func (tree *Tree) insert(key net.IP, mask net.IPMask, value interface{}, overwri
 	return nil
 }
 
+func subtreenodes(n *node) (retn []*node, nodeCount, valueCount int) {
+	if n.value != nil {
+		valueCount += 1
+	}
+	nodeCount += 1
+	retn = append(retn, n)
+
+	if n.left != nil {
+		tn, tnc, tv := subtreenodes(n.left)
+		retn = append(retn, tn...)
+		valueCount += tv
+		nodeCount += tnc
+	}
+	if n.right != nil {
+		tn, tnc, tv := subtreenodes(n.right)
+		retn = append(retn, tn...)
+		valueCount += tv
+		nodeCount += tnc
+	}
+	return retn, nodeCount, valueCount
+}
+
+func (tree *Tree) updateUnused(n *node) {
+	retn, _, _ := subtreenodes(n)
+
+	// node.right = tree.free
+	// tree.free = node
+	for _, e := range retn {
+		e.right = tree.free
+		tree.free = e
+	}
+}
+
 func (tree *Tree) delete32(key, mask uint32, wholeRange bool) error {
 	bit := startbit
 	node := tree.root
@@ -435,9 +468,10 @@ func (tree *Tree) delete32(key, mask uint32, wholeRange bool) error {
 		} else {
 			node.parent.left = nil
 		}
-		// reserve this node for future use
-		node.right = tree.free
-		tree.free = node
+
+		// reserve this node (and its subtree if exists) for future use
+		tree.updateUnused(node)
+
 		// move to parent, check if it's free of value and children
 		node = node.parent
 		if node.right != nil || node.left != nil || node.value != nil {
@@ -493,9 +527,8 @@ func (tree *Tree) delete(key net.IP, mask net.IPMask, wholeRange bool) error {
 		} else {
 			node.parent.left = nil
 		}
-		// reserve this node for future use
-		node.right = tree.free
-		tree.free = node
+		// reserve this node (and its subtree if exists) for future use
+		tree.updateUnused(node)
 
 		// move to parent, check if it's free of value and children
 		node = node.parent
