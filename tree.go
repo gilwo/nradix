@@ -20,7 +20,8 @@ type Tree struct {
 	root *node
 	free *node
 
-	alloc []node
+	alloc                                                         []node
+	countNodes, countValuedNodes, countAllocNodes, countFreeNodes int
 }
 
 const (
@@ -50,9 +51,15 @@ var (
 	ErrBadIP    = errors.New("Bad IP address or mask")
 )
 
-// NewTree creates Tree and preallocates (if preallocate not zero) number of nodes that would be ready to fill with data.
+// get tree stats
+func (t *Tree) GetStats() (treeSize, valuetreeSize, totalNodes, freetotalNodes int) {
+	return t.countNodes, t.countValuedNodes, t.countAllocNodes, t.countFreeNodes
+}
+
+// NewTree creates Tree and preallocates (if preallocate not zero) number of countAllocNodes that would be ready to fill with data.
 func NewTree(preallocate int) *Tree {
 	tree := new(Tree)
+	tree.countNodes++
 	tree.root = tree.newnode()
 	if preallocate == 0 {
 		return tree
@@ -328,10 +335,12 @@ func (tree *Tree) insert32(key, mask uint32, value interface{}, overwrite bool) 
 			return ErrNodeBusy
 		}
 		node.value = value
+		tree.countValuedNodes++
 		return nil
 	}
 	for bit&mask != 0 {
 		next = tree.newnode()
+		tree.countNodes++
 		next.parent = node
 		if key&bit != 0 {
 			node.right = next
@@ -342,6 +351,7 @@ func (tree *Tree) insert32(key, mask uint32, value interface{}, overwrite bool) 
 		node = next
 	}
 	node.value = value
+	tree.countValuedNodes++
 
 	return nil
 }
@@ -380,11 +390,13 @@ func (tree *Tree) insert(key net.IP, mask net.IPMask, value interface{}, overwri
 			return ErrNodeBusy
 		}
 		node.value = value
+		tree.countValuedNodes++
 		return nil
 	}
 
 	for bit&mask[i] != 0 {
 		next = tree.newnode()
+		tree.countNodes++
 		next.parent = node
 		if key[i]&bit != 0 {
 			node.right = next
@@ -400,6 +412,7 @@ func (tree *Tree) insert(key net.IP, mask net.IPMask, value interface{}, overwri
 		}
 	}
 	node.value = value
+	tree.countValuedNodes++
 
 	return nil
 }
@@ -427,14 +440,15 @@ func subtreenodes(n *node) (retn []*node, nodeCount, valueCount int) {
 }
 
 func (tree *Tree) updateUnused(n *node) {
-	retn, _, _ := subtreenodes(n)
+	retn, _, values := subtreenodes(n)
 
-	// node.right = tree.free
-	// tree.free = node
 	for _, e := range retn {
 		e.right = tree.free
 		tree.free = e
 	}
+	tree.countValuedNodes -= values
+	tree.countFreeNodes += len(retn)
+	tree.countNodes -= len(retn)
 }
 
 func (tree *Tree) delete32(key, mask uint32, wholeRange bool) error {
@@ -456,6 +470,8 @@ func (tree *Tree) delete32(key, mask uint32, wholeRange bool) error {
 		// keep it just trim value
 		if node.value != nil {
 			node.value = nil
+			tree.countValuedNodes--
+			tree.countNodes--
 			return nil
 		}
 		return ErrNotFound
@@ -515,6 +531,8 @@ func (tree *Tree) delete(key net.IP, mask net.IPMask, wholeRange bool) error {
 		// keep it just trim value
 		if node.value != nil {
 			node.value = nil
+			tree.countValuedNodes--
+			tree.countNodes--
 			return nil
 		}
 		return ErrNotFound
@@ -626,6 +644,7 @@ func (tree *Tree) newnode() (p *node) {
 	if tree.free != nil {
 		p = tree.free
 		tree.free = tree.free.right
+		tree.countFreeNodes--
 
 		// release all prior links
 		p.right = nil
@@ -640,6 +659,7 @@ func (tree *Tree) newnode() (p *node) {
 		// filled one row, make bigger one
 		tree.alloc = make([]node, ln+200)[:1] // 200, 600, 1400, 3000, 6200, 12600 ...
 		ln = 0
+		tree.countAllocNodes += 200
 	} else {
 		tree.alloc = tree.alloc[:ln+1]
 	}
