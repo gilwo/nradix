@@ -28,6 +28,22 @@ const (
 	startbyte = byte(0x80)
 )
 
+type OptWalk uint32
+
+const (
+	OptWalkIPv4   = OptWalk(0x1)
+	OptWalkIPv6   = OptWalk(0x2)
+	OptWalkIPAuto = OptWalk(0x3)
+)
+
+type findWhat int
+
+const (
+	findBest findWhat = iota + 1
+	findExact
+	findAll
+)
+
 var (
 	ErrNodeBusy = errors.New("Node Busy")
 	ErrNotFound = errors.New("No Such Node")
@@ -147,7 +163,7 @@ func (tree *Tree) DeleteCIDRb(cidr []byte) error {
 	return tree.delete(ip, mask, false)
 }
 
-// Find CIDR traverses tree to proper Node and returns previously saved information in longest covered IP.
+// FindCIDR traverses tree to proper Node and returns previously saved information in longest covered IP.
 func (tree *Tree) FindCIDR(cidr string) (interface{}, error) {
 	return tree.FindCIDRb([]byte(cidr))
 }
@@ -158,13 +174,137 @@ func (tree *Tree) FindCIDRb(cidr []byte) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		return tree.find32(ip, mask), nil
+		values := tree.find32(ip, mask, findBest)
+		if len(values) > 0 {
+			return values[0], nil
+		} else {
+			return nil, nil
+		}
 	}
 	ip, mask, err := parsecidr6(cidr)
 	if err != nil || ip == nil {
 		return nil, err
 	}
-	return tree.find(ip, mask), nil
+	values := tree.find(ip, mask, findBest)
+	if len(values) > 0 {
+		return values[0], nil
+	} else {
+		return nil, nil
+	}
+}
+
+// FindExactCIDR traverses tree to proper Node and returns previously saved information for an exact match.
+func (tree *Tree) FindExactCIDR(cidr string) (interface{}, error) {
+	return tree.FindExactCIDRb([]byte(cidr))
+}
+
+func (tree *Tree) FindExactCIDRb(cidr []byte) (interface{}, error) {
+	if bytes.IndexByte(cidr, '.') > 0 {
+		ip, mask, err := parsecidr4(cidr)
+		if err != nil {
+			return nil, err
+		}
+		values := tree.find32(ip, mask, findExact)
+		if len(values) > 0 {
+			return values[0], nil
+		}
+		return nil, ErrNotFound
+	}
+	ip, mask, err := parsecidr6(cidr)
+	if err != nil || ip == nil {
+		return nil, err
+	}
+	values := tree.find(ip, mask, findExact)
+	if len(values) > 0 {
+		return values[0], nil
+	}
+	return nil, ErrNotFound
+}
+
+// FindAllCIDR traverses tree to proper Node and returns previously saved information in all covered IPs.
+func (tree *Tree) FindAllCIDR(cidr string) ([]interface{}, error) {
+	return tree.FindAllCIDRb([]byte(cidr))
+}
+
+func (tree *Tree) FindAllCIDRb(cidr []byte) ([]interface{}, error) {
+	var ret []interface{}
+	if bytes.IndexByte(cidr, '.') > 0 {
+		ip, mask, err := parsecidr4(cidr)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, tree.find32(ip, mask, findAll)...)
+		return ret, nil
+	}
+	ip, mask, err := parsecidr6(cidr)
+	if err != nil || ip == nil {
+		return nil, err
+	}
+	ret = append(ret, tree.find(ip, mask, findAll)...)
+	return ret, nil
+}
+
+type WalkTreeFunc func(cidr net.IPNet, value interface{}) error
+
+// WalkTree walks the tree (depth first) and calls the `WalkTreeFunc` for each node with a value.
+func (tree *Tree) WalkTree(opt OptWalk, wtfunc WalkTreeFunc) error {
+	walkpath := make([]byte, 0, 128)
+	return tree.walk(opt, wtfunc, walkpath, tree.root)
+}
+
+func (tree *Tree) walk(opt OptWalk, wtfunc WalkTreeFunc, walkpath []byte, node *node) error {
+	if node.value != nil {
+		ipnet := walkpath2net(opt, walkpath)
+		if err := wtfunc(ipnet, node.value); err != nil {
+			return err
+		}
+	}
+	if node.left != nil {
+		if err := tree.walk(opt, wtfunc, append(walkpath, byte(0)), node.left); err != nil {
+			return err
+		}
+	}
+	if node.right != nil {
+		if err := tree.walk(opt, wtfunc, append(walkpath, byte(1)), node.right); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Takes a walkpath byte slice (0=left, 1=right) and turns it into the net.IPNet that it represents.
+func walkpath2net(opt OptWalk, walkpath []byte) net.IPNet {
+	ip := make([]byte, 0, net.IPv6len)
+	var byteval, bitval byte
+	for bit := 0; bit < len(walkpath); bit++ {
+		if bit%8 == 0 {
+			if bit > 0 {
+				ip = append(ip, byteval)
+			}
+			byteval = 0
+			bitval = 0x80
+		}
+		if walkpath[bit] != 0 {
+			byteval |= bitval
+		}
+		bitval >>= 1
+	}
+	ip = append(ip, byteval)
+	switch {
+	case opt&OptWalkIPv4 != 0 && len(ip) <= net.IPv4len:
+		mask := net.CIDRMask(len(walkpath), net.IPv4len*8)
+		for len(ip) < net.IPv4len {
+			ip = append(ip, byte(0))
+		}
+		return net.IPNet{net.IP(ip), mask}
+	case opt&OptWalkIPv6 != 0 && len(ip) <= net.IPv6len:
+		mask := net.CIDRMask(len(walkpath), net.IPv6len*8)
+		for len(ip) < net.IPv6len {
+			ip = append(ip, byte(0))
+		}
+		return net.IPNet{net.IP(ip), mask}
+	}
+	return net.IPNet{}
 }
 
 func (tree *Tree) insert32(key, mask uint32, value interface{}, overwrite bool) error {
@@ -371,58 +511,82 @@ func (tree *Tree) delete(key net.IP, mask net.IPMask, wholeRange bool) error {
 	return nil
 }
 
-func (tree *Tree) find32(key, mask uint32) (value interface{}) {
+func (tree *Tree) find32(key, mask uint32, what findWhat) []interface{} {
+	var ret []interface{}
+	var exact bool
 	bit := startbit
 	node := tree.root
 	for node != nil {
 		if node.value != nil {
-			value = node.value
+			if what == findAll {
+				ret = append(ret, node.value)
+			} else {
+				ret = append(ret[:0], node.value)
+			}
+			exact = (mask&bit == 0)
+		}
+		if mask&bit == 0 {
+			break
 		}
 		if key&bit != 0 {
 			node = node.right
 		} else {
 			node = node.left
 		}
-		if mask&bit == 0 {
-			break
-		}
 		bit >>= 1
-
 	}
-	return value
+	if !exact && what == findExact {
+		return nil
+	}
+	return ret
 }
 
-func (tree *Tree) find(key net.IP, mask net.IPMask) (value interface{}) {
+func (tree *Tree) find(key net.IP, mask net.IPMask, what findWhat) []interface{} {
 	if len(key) != len(mask) {
-		return ErrBadIP
+		return nil
 	}
+	var ret []interface{}
+	var exact bool
 	var i int
 	bit := startbyte
 	node := tree.root
 	for node != nil {
 		if node.value != nil {
-			value = node.value
+			if what == findAll {
+				ret = append(ret, node.value)
+			} else {
+				ret = append(ret[:0], node.value)
+			}
+			exact = mask[i]&bit == 0
+		}
+		if mask[i]&bit == 0 {
+			break
 		}
 		if key[i]&bit != 0 {
 			node = node.right
 		} else {
 			node = node.left
 		}
-		if mask[i]&bit == 0 {
-			break
-		}
 		if bit >>= 1; bit == 0 {
 			i, bit = i+1, startbyte
 			if i >= len(key) {
 				// reached depth of the tree, there should be matching node...
 				if node != nil {
-					value = node.value
+					if what == findAll {
+						ret = append(ret, node.value)
+					} else {
+						ret = append(ret[:0], node.value)
+					}
+					exact = (node.value != nil)
 				}
 				break
 			}
 		}
 	}
-	return value
+	if !exact && what == findExact {
+		return nil
+	}
+	return ret
 }
 
 func (tree *Tree) newnode() (p *node) {
