@@ -51,8 +51,8 @@ var (
 	ErrBadIP    = errors.New("Bad IP address or mask")
 )
 
-// get tree stats
-func (t *Tree) GetStats() (treeSize, valuetreeSize, totalNodes, freetotalNodes int) {
+// GetStats get tree stats count of nodes, value nodes allocated nodes and free nodes
+func (t *Tree) GetStats() (treeNodes, valuetreeNodes, totalNodes, freetotalNodes int) {
 	return t.countNodes, t.countValuedNodes, t.countAllocNodes, t.countFreeNodes
 }
 
@@ -109,7 +109,7 @@ func (tree *Tree) AddCIDRb(cidr []byte, val interface{}) error {
 	return tree.insert(ip, mask, val, false)
 }
 
-// AddCIDR adds value associated with IP/mask to the tree. Will return error for invalid CIDR or if value already exists.
+// SetCIDR adds value associated with IP/mask to the tree. Will return error for invalid CIDR.
 func (tree *Tree) SetCIDR(cidr string, val interface{}) error {
 	return tree.SetCIDRb([]byte(cidr), val)
 }
