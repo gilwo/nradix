@@ -657,9 +657,9 @@ func (tree *Tree) newnode() (p *node) {
 	ln := len(tree.alloc)
 	if ln == cap(tree.alloc) {
 		// filled one row, make bigger one
+		tree.countAllocNodes += ln + 200
 		tree.alloc = make([]node, ln+200)[:1] // 200, 600, 1400, 3000, 6200, 12600 ...
 		ln = 0
-		tree.countAllocNodes += 200
 	} else {
 		tree.alloc = tree.alloc[:ln+1]
 	}
