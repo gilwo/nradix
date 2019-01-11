@@ -51,9 +51,9 @@ var (
 	ErrBadIP    = errors.New("Bad IP address or mask")
 )
 
-// GetStats get tree stats count of nodes, value nodes allocated nodes and free nodes
-func (t *Tree) GetStats() (treeNodes, valuetreeNodes, totalNodes, freetotalNodes int) {
-	return t.countNodes, t.countValuedNodes, t.countAllocNodes, t.countFreeNodes
+// GetStats get tree stats count of nodes, valued nodes, allocated nodes and free nodes
+func (tree *Tree) GetStats() (treeNodes, valuetreeNodes, totalNodes, freetotalNodes int) {
+	return tree.countNodes, tree.countValuedNodes, tree.countAllocNodes, tree.countFreeNodes
 }
 
 // NewTree creates Tree and preallocates (if preallocate not zero) number of countAllocNodes that would be ready to fill with data.
@@ -251,6 +251,7 @@ func (tree *Tree) FindAllCIDRb(cidr []byte) ([]interface{}, error) {
 	return ret, nil
 }
 
+// WalkTreeFunc is the type of function for caller of WalkTree function
 type WalkTreeFunc func(cidr net.IPNet, value interface{}) error
 
 // WalkTree walks the tree (depth first) and calls the `WalkTreeFunc` for each node with a value.
@@ -303,13 +304,13 @@ func walkpath2net(opt OptWalk, walkpath []byte) net.IPNet {
 		for len(ip) < net.IPv4len {
 			ip = append(ip, byte(0))
 		}
-		return net.IPNet{net.IP(ip), mask}
+		return net.IPNet{IP: net.IP(ip), Mask: mask}
 	case opt&OptWalkIPv6 != 0 && len(ip) <= net.IPv6len:
 		mask := net.CIDRMask(len(walkpath), net.IPv6len*8)
 		for len(ip) < net.IPv6len {
 			ip = append(ip, byte(0))
 		}
-		return net.IPNet{net.IP(ip), mask}
+		return net.IPNet{IP: net.IP(ip), Mask: mask}
 	}
 	return net.IPNet{}
 }
@@ -423,9 +424,9 @@ func (tree *Tree) insert(key net.IP, mask net.IPMask, value interface{}, overwri
 
 func subtreenodes(n *node) (retn []*node, nodeCount, valueCount int) {
 	if n.value != nil {
-		valueCount += 1
+		valueCount++
 	}
-	nodeCount += 1
+	nodeCount++
 	retn = append(retn, n)
 
 	if n.left != nil {
