@@ -22,6 +22,7 @@ type Tree struct {
 
 	alloc                                                         []node
 	countNodes, countValuedNodes, countAllocNodes, countFreeNodes int
+	access                                                        sync.Mutex
 }
 
 const (
@@ -91,10 +92,12 @@ func NewTree(preallocate int) *Tree {
 
 // AddCIDR adds value associated with IP/mask to the tree. Will return error for invalid CIDR or if value already exists.
 func (tree *Tree) AddCIDR(cidr string, val interface{}) error {
-	return tree.AddCIDRb([]byte(cidr), val)
+	tree.access.Lock()
+	defer tree.access.Unlock()
+	return tree.addCIDRb([]byte(cidr), val)
 }
 
-func (tree *Tree) AddCIDRb(cidr []byte, val interface{}) error {
+func (tree *Tree) addCIDRb(cidr []byte, val interface{}) error {
 	if bytes.IndexByte(cidr, '.') > 0 {
 		ip, mask, err := parsecidr4(cidr)
 		if err != nil {
@@ -111,10 +114,12 @@ func (tree *Tree) AddCIDRb(cidr []byte, val interface{}) error {
 
 // SetCIDR adds value associated with IP/mask to the tree. Will return error for invalid CIDR.
 func (tree *Tree) SetCIDR(cidr string, val interface{}) error {
-	return tree.SetCIDRb([]byte(cidr), val)
+	tree.access.Lock()
+	defer tree.access.Unlock()
+	return tree.setCIDRb([]byte(cidr), val)
 }
 
-func (tree *Tree) SetCIDRb(cidr []byte, val interface{}) error {
+func (tree *Tree) setCIDRb(cidr []byte, val interface{}) error {
 	if bytes.IndexByte(cidr, '.') > 0 {
 		ip, mask, err := parsecidr4(cidr)
 		if err != nil {
@@ -132,10 +137,12 @@ func (tree *Tree) SetCIDRb(cidr []byte, val interface{}) error {
 // DeleteWholeRangeCIDR removes all values associated with IPs
 // in the entire subnet specified by the CIDR.
 func (tree *Tree) DeleteWholeRangeCIDR(cidr string) error {
-	return tree.DeleteWholeRangeCIDRb([]byte(cidr))
+	tree.access.Lock()
+	defer tree.access.Unlock()
+	return tree.deleteWholeRangeCIDRb([]byte(cidr))
 }
 
-func (tree *Tree) DeleteWholeRangeCIDRb(cidr []byte) error {
+func (tree *Tree) deleteWholeRangeCIDRb(cidr []byte) error {
 	if bytes.IndexByte(cidr, '.') > 0 {
 		ip, mask, err := parsecidr4(cidr)
 		if err != nil {
@@ -152,10 +159,12 @@ func (tree *Tree) DeleteWholeRangeCIDRb(cidr []byte) error {
 
 // DeleteCIDR removes value associated with IP/mask from the tree.
 func (tree *Tree) DeleteCIDR(cidr string) error {
-	return tree.DeleteCIDRb([]byte(cidr))
+	tree.access.Lock()
+	defer tree.access.Unlock()
+	return tree.deleteCIDRb([]byte(cidr))
 }
 
-func (tree *Tree) DeleteCIDRb(cidr []byte) error {
+func (tree *Tree) deleteCIDRb(cidr []byte) error {
 	if bytes.IndexByte(cidr, '.') > 0 {
 		ip, mask, err := parsecidr4(cidr)
 		if err != nil {
@@ -172,10 +181,12 @@ func (tree *Tree) DeleteCIDRb(cidr []byte) error {
 
 // FindCIDR traverses tree to proper Node and returns previously saved information in longest covered IP.
 func (tree *Tree) FindCIDR(cidr string) (interface{}, error) {
-	return tree.FindCIDRb([]byte(cidr))
+	tree.access.Lock()
+	defer tree.access.Unlock()
+	return tree.findCIDRb([]byte(cidr))
 }
 
-func (tree *Tree) FindCIDRb(cidr []byte) (interface{}, error) {
+func (tree *Tree) findCIDRb(cidr []byte) (interface{}, error) {
 	if bytes.IndexByte(cidr, '.') > 0 {
 		ip, mask, err := parsecidr4(cidr)
 		if err != nil {
@@ -202,10 +213,12 @@ func (tree *Tree) FindCIDRb(cidr []byte) (interface{}, error) {
 
 // FindExactCIDR traverses tree to proper Node and returns previously saved information for an exact match.
 func (tree *Tree) FindExactCIDR(cidr string) (interface{}, error) {
-	return tree.FindExactCIDRb([]byte(cidr))
+	tree.access.Lock()
+	defer tree.access.Unlock()
+	return tree.findExactCIDRb([]byte(cidr))
 }
 
-func (tree *Tree) FindExactCIDRb(cidr []byte) (interface{}, error) {
+func (tree *Tree) findExactCIDRb(cidr []byte) (interface{}, error) {
 	if bytes.IndexByte(cidr, '.') > 0 {
 		ip, mask, err := parsecidr4(cidr)
 		if err != nil {
@@ -230,10 +243,12 @@ func (tree *Tree) FindExactCIDRb(cidr []byte) (interface{}, error) {
 
 // FindAllCIDR traverses tree to proper Node and returns previously saved information in all covered IPs.
 func (tree *Tree) FindAllCIDR(cidr string) ([]interface{}, error) {
-	return tree.FindAllCIDRb([]byte(cidr))
+	tree.access.Lock()
+	defer tree.access.Unlock()
+	return tree.findAllCIDRb([]byte(cidr))
 }
 
-func (tree *Tree) FindAllCIDRb(cidr []byte) ([]interface{}, error) {
+func (tree *Tree) findAllCIDRb(cidr []byte) ([]interface{}, error) {
 	var ret []interface{}
 	if bytes.IndexByte(cidr, '.') > 0 {
 		ip, mask, err := parsecidr4(cidr)
@@ -256,6 +271,8 @@ type WalkTreeFunc func(cidr net.IPNet, value interface{}) error
 
 // WalkTree walks the tree (depth first) and calls the `WalkTreeFunc` for each node with a value.
 func (tree *Tree) WalkTree(opt OptWalk, wtfunc WalkTreeFunc) error {
+	tree.access.Lock()
+	defer tree.access.Unlock()
 	walkpath := make([]byte, 0, 128)
 	return tree.walk(opt, wtfunc, walkpath, tree.root)
 }
