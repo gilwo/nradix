@@ -335,7 +335,9 @@ func (tree *Tree) insert32(key, mask uint32, value interface{}, overwrite bool) 
 			return ErrNodeBusy
 		}
 		node.value = value
-		tree.countValuedNodes++
+		if !overwrite {
+			tree.countValuedNodes++
+		}
 		return nil
 	}
 	for bit&mask != 0 {
@@ -390,7 +392,9 @@ func (tree *Tree) insert(key net.IP, mask net.IPMask, value interface{}, overwri
 			return ErrNodeBusy
 		}
 		node.value = value
-		tree.countValuedNodes++
+		if !overwrite {
+			tree.countValuedNodes++
+		}
 		return nil
 	}
 
