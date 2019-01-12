@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"net"
+	"sync"
 )
 
 type node struct {
