@@ -268,7 +268,8 @@ func (tree *Tree) findAllCIDRb(cidr []byte) ([]interface{}, error) {
 }
 
 // WalkTreeFunc is the type of function for caller of WalkTree function
-type WalkTreeFunc func(cidr net.IPNet, value interface{}) error
+// if function return with false the walking flow will skip the subtree below this cidr (node)
+type WalkTreeFunc func(cidr net.IPNet, value interface{}) (bool, error)
 
 // WalkTree walks the tree (depth first) and calls the `WalkTreeFunc` for each node with a value.
 func (tree *Tree) WalkTree(opt OptWalk, wtfunc WalkTreeFunc) error {
@@ -281,8 +282,10 @@ func (tree *Tree) WalkTree(opt OptWalk, wtfunc WalkTreeFunc) error {
 func (tree *Tree) walk(opt OptWalk, wtfunc WalkTreeFunc, walkpath []byte, node *node) error {
 	if node.value != nil {
 		ipnet := walkpath2net(opt, walkpath)
-		if err := wtfunc(ipnet, node.value); err != nil {
+		if goDeeper, err := wtfunc(ipnet, node.value); err != nil {
 			return err
+		} else if !goDeeper {
+			return nil
 		}
 	}
 	if node.left != nil {

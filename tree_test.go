@@ -695,13 +695,13 @@ func TestWalkTree(t *testing.T) {
 	for i, v := range cidrs {
 		tr.AddCIDR(v, i)
 	}
-	tr.WalkTree(OptWalkIPAuto, func(cidr net.IPNet, value interface{}) error {
+	tr.WalkTree(OptWalkIPAuto, func(cidr net.IPNet, value interface{}) (bool, error) {
 		i := value.(int)
 		if i < 0 || i >= len(results) {
 			t.Fatalf("Node value out of index range (should be 0-%d): %d", len(results)-1, i)
 		}
 		results[i] = cidr.String()
-		return nil
+		return true, nil
 	})
 	for i, v := range cidrs {
 		if results[i] != v {
@@ -727,13 +727,13 @@ func TestWalkTree4(t *testing.T) {
 	for i, v := range cidrs {
 		tr.AddCIDR(v, i)
 	}
-	tr.WalkTree(OptWalkIPv4, func(cidr net.IPNet, value interface{}) error {
+	tr.WalkTree(OptWalkIPv4, func(cidr net.IPNet, value interface{}) (bool, error) {
 		i := value.(int)
 		if i < 0 || i >= len(results) {
 			t.Fatalf("Node value out of index range (should be 0-%d): %d", len(results)-1, i)
 		}
 		results[i] = cidr.String()
-		return nil
+		return true, nil
 	})
 	for i, v := range cidrs {
 		if results[i] != v {
@@ -757,13 +757,13 @@ func TestWalkTree6(t *testing.T) {
 	for i, v := range cidrs {
 		tr.AddCIDR(v, i)
 	}
-	tr.WalkTree(OptWalkIPv6, func(cidr net.IPNet, value interface{}) error {
+	tr.WalkTree(OptWalkIPv6, func(cidr net.IPNet, value interface{}) (bool, error) {
 		i := value.(int)
 		if i < 0 || i >= len(results) {
 			t.Fatalf("Node value out of index range (should be 0-%d): %d", len(results)-1, i)
 		}
 		results[i] = cidr.String()
-		return nil
+		return true, nil
 	})
 	for i, v := range cidrs {
 		if results[i] != v {
