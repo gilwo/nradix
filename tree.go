@@ -494,7 +494,6 @@ func (tree *Tree) delete32(key, mask uint32, wholeRange bool) error {
 		if node.value != nil {
 			node.value = nil
 			tree.countValuedNodes--
-			tree.countNodes--
 			return nil
 		}
 		return ErrNotFound
@@ -555,7 +554,6 @@ func (tree *Tree) delete(key net.IP, mask net.IPMask, wholeRange bool) error {
 		if node.value != nil {
 			node.value = nil
 			tree.countValuedNodes--
-			tree.countNodes--
 			return nil
 		}
 		return ErrNotFound
