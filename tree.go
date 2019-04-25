@@ -469,6 +469,7 @@ func (tree *Tree) updateUnused(n *node) {
 	retn, _, values := subtreenodes(n)
 
 	for _, e := range retn {
+		e.left = nil
 		e.right = tree.free
 		tree.free = e
 	}
