@@ -503,9 +503,20 @@ func (tree *Tree) delete32(key, mask uint32, wholeRange bool) error {
 		return ErrNotFound
 	}
 
-	// need to trim leaf
+	// need to trim whole branch
 	for {
-		if node.parent.right == node {
+		// ... but dont remove the root node
+		if node == tree.root {
+			if node.right != nil {
+				tree.updateUnused(node.right)
+				node.right = nil
+			}
+			if node.left != nil {
+				tree.updateUnused(node.left)
+				node.left = nil
+			}
+			break
+		} else if node.parent.right == node {
 			node.parent.right = nil
 		} else {
 			node.parent.left = nil
@@ -563,9 +574,20 @@ func (tree *Tree) delete(key net.IP, mask net.IPMask, wholeRange bool) error {
 		return ErrNotFound
 	}
 
-	// need to trim leaf
+	// need to trim whole branch
 	for {
-		if node.parent.right == node {
+		// ... but dont remove the root node
+		if node == tree.root {
+			if node.right != nil {
+				tree.updateUnused(node.right)
+				node.right = nil
+			}
+			if node.left != nil {
+				tree.updateUnused(node.left)
+				node.left = nil
+			}
+			break
+		} else if node.parent.right == node {
 			node.parent.right = nil
 		} else {
 			node.parent.left = nil
