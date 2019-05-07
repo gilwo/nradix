@@ -23,6 +23,7 @@ type Tree struct {
 
 	alloc                                                         []node
 	countNodes, countValuedNodes, countAllocNodes, countFreeNodes int
+	safe                                                          bool
 	sync.Mutex
 }
 
@@ -59,8 +60,9 @@ func (tree *Tree) GetStats() (treeNodes, valuetreeNodes, totalNodes, freetotalNo
 }
 
 // NewTree creates Tree and preallocates (if preallocate not zero) number of countAllocNodes that would be ready to fill with data.
-func NewTree(preallocate int) *Tree {
+func NewTree(preallocate int, safe bool) *Tree {
 	tree := new(Tree)
+	tree.safe = safe
 	tree.countNodes++
 	tree.root = tree.newnode()
 	if preallocate == 0 {
@@ -93,8 +95,10 @@ func NewTree(preallocate int) *Tree {
 
 // AddCIDR adds value associated with IP/mask to the tree. Will return error for invalid CIDR or if value already exists.
 func (tree *Tree) AddCIDR(cidr string, val interface{}) error {
-	tree.Lock()
-	defer tree.Unlock()
+	if tree.safe {
+		tree.Lock()
+		defer tree.Unlock()
+	}
 	return tree.addCIDRb([]byte(cidr), val)
 }
 
@@ -115,8 +119,10 @@ func (tree *Tree) addCIDRb(cidr []byte, val interface{}) error {
 
 // SetCIDR adds value associated with IP/mask to the tree. Will return error for invalid CIDR.
 func (tree *Tree) SetCIDR(cidr string, val interface{}) error {
-	tree.Lock()
-	defer tree.Unlock()
+	if tree.safe {
+		tree.Lock()
+		defer tree.Unlock()
+	}
 	return tree.setCIDRb([]byte(cidr), val)
 }
 
@@ -138,8 +144,10 @@ func (tree *Tree) setCIDRb(cidr []byte, val interface{}) error {
 // DeleteWholeRangeCIDR removes all values associated with IPs
 // in the entire subnet specified by the CIDR.
 func (tree *Tree) DeleteWholeRangeCIDR(cidr string) error {
-	tree.Lock()
-	defer tree.Unlock()
+	if tree.safe {
+		tree.Lock()
+		defer tree.Unlock()
+	}
 	return tree.deleteWholeRangeCIDRb([]byte(cidr))
 }
 
@@ -160,8 +168,10 @@ func (tree *Tree) deleteWholeRangeCIDRb(cidr []byte) error {
 
 // DeleteCIDR removes value associated with IP/mask from the tree.
 func (tree *Tree) DeleteCIDR(cidr string) error {
-	tree.Lock()
-	defer tree.Unlock()
+	if tree.safe {
+		tree.Lock()
+		defer tree.Unlock()
+	}
 	return tree.deleteCIDRb([]byte(cidr))
 }
 
@@ -182,8 +192,10 @@ func (tree *Tree) deleteCIDRb(cidr []byte) error {
 
 // FindCIDR traverses tree to proper Node and returns previously saved information in longest covered IP.
 func (tree *Tree) FindCIDR(cidr string) (interface{}, error) {
-	tree.Lock()
-	defer tree.Unlock()
+	if tree.safe {
+		tree.Lock()
+		defer tree.Unlock()
+	}
 	return tree.findCIDRb([]byte(cidr))
 }
 
@@ -214,8 +226,10 @@ func (tree *Tree) findCIDRb(cidr []byte) (interface{}, error) {
 
 // FindExactCIDR traverses tree to proper Node and returns previously saved information for an exact match.
 func (tree *Tree) FindExactCIDR(cidr string) (interface{}, error) {
-	tree.Lock()
-	defer tree.Unlock()
+	if tree.safe {
+		tree.Lock()
+		defer tree.Unlock()
+	}
 	return tree.findExactCIDRb([]byte(cidr))
 }
 
@@ -244,8 +258,10 @@ func (tree *Tree) findExactCIDRb(cidr []byte) (interface{}, error) {
 
 // FindAllCIDR traverses tree to proper Node and returns previously saved information in all covered IPs.
 func (tree *Tree) FindAllCIDR(cidr string) ([]interface{}, error) {
-	tree.Lock()
-	defer tree.Unlock()
+	if tree.safe {
+		tree.Lock()
+		defer tree.Unlock()
+	}
 	return tree.findAllCIDRb([]byte(cidr))
 }
 
@@ -273,8 +289,10 @@ type WalkTreeFunc func(cidr net.IPNet, value interface{}) (bool, error)
 
 // WalkTree walks the tree (depth first) and calls the `WalkTreeFunc` for each node with a value.
 func (tree *Tree) WalkTree(opt OptWalk, wtfunc WalkTreeFunc) error {
-	tree.Lock()
-	defer tree.Unlock()
+	if tree.safe {
+		tree.Lock()
+		defer tree.Unlock()
+	}
 	walkpath := make([]byte, 0, 128)
 	return tree.walk(opt, wtfunc, walkpath, tree.root)
 }
